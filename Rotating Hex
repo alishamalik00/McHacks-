@@ -1,0 +1,1773 @@
+//++++++++++++++++++SAME AS STARTER CODE+++++++++++++++++++++//
+
+//vector table
+.section .vectors, "ax"
+B _start            // reset vector
+B SERVICE_UND       // undefined instruction vector
+B SERVICE_SVC       // software interrupt vector
+B SERVICE_ABT_INST  // aborted prefetch vector
+B SERVICE_ABT_DATA  // aborted data vector
+.word 0             // unused vector
+B SERVICE_IRQ       // IRQ interrupt vector
+B SERVICE_FIQ       // FIQ interrupt vector
+
+//++++++++++++++++++DONE: SAME AS STARTER CODE+++++++++++++++++++++//
+
+// ========== global data section ==========
+.section .data
+PB_int_flag: .word 0x0       // PB flag
+tim_int_flag: .word 0x0      // timer flag
+DIRECTION_TO_GO: .word -1       // -1 = right-to-left which is default , 1=lefttoright
+LAST_SWITCH_STATE: .word 0x0     
+PAUSE: .word 0  // 0 for pause and 1 for not pause 
+//defining all my varibales 
+HEX_TABLE: //does allignment matter 
+    .byte 0x3F
+	.byte 0x06
+	.byte 0x5B
+	.byte 0x4F  
+    .byte 0x66
+	.byte 0x6D
+	//factcheck
+	.byte 0x7D
+	.byte 0x07  
+    .byte 0x7F
+	.byte 0x6F
+	.byte 0x77
+	.byte 0x7C  
+    .byte 0x39
+	.byte 0x5E
+	.byte 0x79
+	.byte 0x71  
+    .byte 0x5C                   
+    .byte 0x6D                    
+    .byte 0x00                    
+    .byte 0x5E                   
+    .byte 0x77                  
+    .byte 0x79                   
+    .byte 0x39                    
+
+
+TEXT_4_DISPLAY:
+    .byte 0x0E, 0x0C, 0x01, 0x0F, 0x0F, 0x10  //E,C,1,F,F,o has to rverse for it to work
+	//probelms solve by backweard
+	//ask TA if still works if run backwards 
+	.space 26
+	//ensure correct 
+TEXT_4_DISPLAY_ALT: //can be defined for different variables 
+	 .byte 0x10, 0x0F, 0x0F, 0x01, 0x0C, 0x0E  //o,F,F,1,C,E
+	 //try to trouble shootbackwards
+	 
+// predefined full message buffers for 15 switch combinations (0001–1111)
+//idea: hardcode all posible combos and display selected combo from loop
+//see if change later on 
+pattern_0001: .byte 0x04,0x02,0x03, 0x12,0x15,0x11,0x16,0x15 // spelling for ECSE 324
+pattern_0010: .byte 0x05,0x02,0x03,0x12,0x15,0x11, 0x16,0x15 //spelling 4 ECSE 325
+pattern_0011: .byte 0x12,0x04,0x02,0x03,0x12,0x15,0x11,0x16,0x15,0x12,0x05,0x02,0x03,0x12,0x15,0x11,0x16, 0x15//TOP TWO COMBINED TOGTHER 
+pattern_0100: .byte 0x0E,0x0D,0x10,0x0C,0x0E,0x0D,0x10,0x0C
+// Code
+//see if need to add space 
+//space =0x12
+pattern_0101: .byte 0x12,0x04,0x02,0x03,0x12,0x15,0x11,0x16,0x15,0x12,0x0E,0x0D,0x10,0x0C //ECSE 324 N CODE FOGTEHR Code
+pattern_0110: .byte 0x12,0x05,0x02,0x03,0x12,0x15,0x11,0x16,0x15,0x12,0x0E,0x0D,0x10,0x0C //SW1 N 2 COMBO
+pattern_0111: //COMBINING TWO WORDS...EASIER TO BREAK UP
+	.byte 0x12,0x0E,0x0D,0x10, 0x0C  //ENSURE PROPER SPACING BETWEEN WORD 
+   	.byte 0x12,0x05,0x02,0x03,0x12,0x15,0x11,0x16,0x15 //ECSE 325 speeling out 
+   	.byte 0x12,0x04,0x02,0x03,0x12,0x15,0x11,0x16,0x15  //ECSE 324 displayed ...does order mater
+	//play around with order
+	//see effect
+   
+pattern_1001: .byte 0x12,0x04,0x02,0x03,0x12, 0x15, 0x11, 0x16, 0x15, 0x12, 0x0E, 0x0F, 0x0A, 0x0C                     //ECSE 324 CAFE TOGTEHR 
+pattern_1010: .byte 0x12,0x05,0x02,0x03,0x12, 0x15, 0x11, 0x16, 0x15, 0x12, 0x0E, 0x0F, 0x0A, 0x0C                     //325 CAFE TOGETHER 
+pattern_1011: .byte 0x05,0x02,0x03,0x12,0x15, 0x11, 0x16, 0x15, 0x12, 0x04, 0x02, 0x03, 0x12, 0x15, 0x11, 0x16, 0x15, 0x12, 0x0E, 0x0F, 0x0A, 0x0C
+pattern_1100: .byte 0x12,0x0E,0x0D,0x10,0x0C, 0x12, 0x0E, 0x0F, 0x0A, 0x0C       // Code CAFE
+//yyyy
+pattern_1101: .byte 0x12,0x04,0x02,0x03,0x12,0x15, 0x11, 0x16, 0x15, 0x12, 0x0E, 0x0D, 0x10, 0x0C, 0x12, 0x0E, 0x0F, 0x0A, 0x0C
+pattern_1110: .byte 0x12,0x05,0x02,0x03, 0x12, 0x15, 0x11, 0x16, 0x15, 0x12, 0x0E, 0x0F, 0x0A, 0x0C, 0x12, 0x0E, 0x0D, 0x10, 0x0C
+pattern_1111: .byte 0x05,0x02,0x03,0x12, 0x15, 0x11, 0x16, 0x15, 0x12, 0x04, 0x02, 0x03, 0x12, 0x15, 0x11, 0x16, 0x15, 0x12,0x0E, 0x0F, 0x0A, 0x0C , 0x12, 0x0E, 0x0D, 0x10, 0x0C, 0x12
+
+pattern_1000: .byte 0x0E,0x0F,0x0A,0x0C
+.align 2
+msg_len:   .word 6           //message length
+msg_index: .word 0           //curr
+
+//defining speed controlls 
+DEFINING_SPEED: .word 2         // Default = level 2 (0.3s)
+STORING_SPEED:
+    .word 200000000          //slowest - lowetes lvl
+    .word 100000000          //5 leds medium lvl
+    .word 60000000           //max lvl. 10 LED
+//can get rid of this??
+//mayb garbage code 
+DISPLAY_PATT:
+//allLED OFF
+    .word 0x00000000         //allLED OFF
+    .word 0x000003FF         
+    .word 0x0000001F         
+    .word 0x00000007
+	//dont eve use garbage coe 
+    .word 0x00000003
+	//dont eve use garbage coe //dont eve use garbage coe 
+    .word 0x00000001         //also dont even use garbage
+//DEFINING VARIABLES FOR WORDS
+letter_f: .byte 0x0F
+letter_a: .byte 0x0A
+letter_c: .byte 0x0C
+letter_e: .byte 0x0E
+letter_o: .byte 0x10
+letter_d: .byte 0x0D //defining varibales moving redcundacy
+//counterintuitive lolol
+letter_s: .byte 0x11
+letter_space: .byte 0x12
+
+//DEFINING VARIABLES FOR NUMBERS
+number_1: .byte 0x01 //USED THROUTHOUT 
+number_2: .byte 0x02
+number_3: .byte 0x03
+number_4: .byte 0x04
+number_5: .byte 0x05
+// ========== main program ==========
+
+//-----------------STARTERCODE
+.text
+.global _start
+_start:
+    /* Set up stack pointers for IRQ and SVC processor modes */
+    MOV R1, #0b11010010      // interrupts masked, MODE = IRQ
+    MSR CPSR_c, R1           // change to IRQ mode
+    LDR SP, =0xFFFFFFFF - 0xFF  // set IRQ stack to A9 on-chip memory
+    /* Change to SVC (supervisor) mode with interrupts disabled */
+    MOV R1, #0b11010011      // interrupts masked, MODE = SVC
+    MSR CPSR, R1             // change to supervisor mode
+    LDR SP, =0x3FFFFFFF - 0xFF  // set SVC stack to top of DDR3 memory
+    BL  CONFIG_GIC           // configure the ARM GIC
+    // NOTE: write to the pushbutton KEY interrupt mask register
+    // Or, you can call enable_PB_INT_ASM subroutine from previous task
+    // to enable interrupt for ARM A9 private timer, 
+    // use ARM_TIM_config_ASM subroutine
+	
+// --------------END STARTERCODE
+	
+	
+	
+      //enable pushbutton interrupts
+    MOV R0,#0xF                 
+	//MASK FR 4 PBA
+    BL enable_PB_INT_ASM        //enable interrupts
+
+    //timer init
+    LDR R6,=DEFINING_SPEED     
+	//addr4speed setting
+    LDR R7,[R6]               
+	//current speed
+
+    LDR R6,=STORING_SPEED      
+	//base addr speed values 
+    LSL R8,R7,#2              
+	// R7    mul 4 offset 4 word 
+    ADD R6,R6,R8             
+	//offset into array
+    LDR R0,[R6]                
+	// selected timer val
+	
+	
+	
+	
+	
+    MOV R1,#7                  
+	// R1=prescaler value
+    BL ARM_TIM_config_ASM      //timwr config
+
+    // led initializationpattern based w default speed
+    LDR R9,=0xFF200000         
+	//base ad of array
+    LDR R10,=DISPLAY_PATT      
+	// base of LED pattern array
+    ADD R11,R10,#12           
+	//calc   index
+    LDR R2,[R11]               
+
+    STR R2,[R9]                //wrritne to port
+
+	
+	
+	
+	
+//-----------------STARTER
+    // enable IRQ interrupts in the processor
+    MOV R0, #0b01010011      // IRQ unmasked, MODE = SVC
+    MSR CPSR_c, R0
+//-----------DONE STARTER
+
+
+
+
+
+
+IDLE:
+    BL SWITCHES_EFFECT   // check if SW[3:0] changed
+    LDR R1,=PB_int_flag //getting addy
+	// LDR R2,[R1] //see if needed 
+    LDR R2,[R1] //non zero button pressed
+	//again and again 
+	
+	
+	
+    CMP R2,#0//timer interuypt flag set 
+	//BEQ R2,#1
+    BNE BUTTON_PRESS
+	//LDR R3,[R2]
+	
+	
+    LDR R1,=tim_int_flag//do not modify have to see
+	//raincheck 
+    LDR R2,[R1]
+	// LDR R2,[R1]
+	
+	
+    CMP R2,#0///timer interuypt flag set 
+	//check again 
+    BNE TIMER
+
+    B IDLE
+	
+	
+	
+	
+
+
+BUTTON_PRESS:
+    PUSH {R5,LR}   //probs dont hav to just in case           
+    MOV R5,#0 //clearning flag 
+	//see TSRB 
+	//STRB
+    STR R5,[R1]
+    BL KEY_ISR
+	//UNSURE CHECK REGISTERS 
+    POP {R5,LR}              
+    B IDLE//get abck to main 
+
+TIMER:
+    PUSH {R5-R7,LR}          
+    MOV R7,#0
+    STR R7,[R1]
+    LDR R6,=PAUSE //pause flag load
+	//get that fucntion 
+    LDR R5,[R6]
+    CMP R5,#1//as we definined the beggining
+	//0 is pause 1 is nto pause 
+    BEQ .skip_rotate//IF PAUSED SKIP 
+    BL properDisplay //IF NOT PAUSED CALL ROTAT ROUTINE
+.skip_rotate:
+    POP {R5-R7,LR}           //RESTORRATION
+    B IDLE
+//---------------------STARTER CODE 
+
+/*--- Undefined instructions --------------------------------------*/
+SERVICE_UND:
+    B SERVICE_UND
+/*--- Software interrupts ----------------------------------------*/
+SERVICE_SVC:
+    B SERVICE_SVC
+/*--- Aborted data reads ------------------------------------------*/
+SERVICE_ABT_DATA:
+    B SERVICE_ABT_DATA
+/*--- Aborted instruction fetch -----------------------------------*/
+SERVICE_ABT_INST:
+    B SERVICE_ABT_INST
+/*--- IRQ ---------------------------------------------------------*/
+SERVICE_IRQ:
+    PUSH {R0-R7, LR}
+/* Read the ICCIAR from the CPU Interface */
+    LDR R4, =0xFFFEC100
+    LDR R5, [R4, #0x0C] // read from ICCIAR
+/* NOTE: Check which interrupt has occurred (check interrupt IDs)
+   Then call the corresponding ISR
+   If the ID is not recognized, branch to UNEXPECTED
+   See the assembly example provided in the DE1-SoC Computer Manual
+   on page 46 */
+
+//---------------END OF STARTER CODE
+
+
+
+
+    // check interrupt source
+	//comonsnese
+	//tA GUIDANCE 
+    CMP R5,#73
+	//CMP R5,R6 
+    BEQ HANDLE_PUSHBUTTON
+	//BEQ HANDLE_TIMER
+    CMP R5,#29
+	//MOV R6,#29   
+    BEQ HANDLE_TIMER
+    B UNEXPECTED_INTERRUPT //ALL THE WAY AT BOTTOM
+HANDLE_PUSHBUTTON:
+//CALL PUSHBUTTON INTERUPT 
+    BL KEY_ISR
+    B EXIT_IRQ
+HANDLE_TIMER:
+//CALL TIMER INTERUPT 
+    BL ARM_TIM_ISR
+	
+    B EXIT_IRQ
+	
+	
+	
+	
+	
+//-----------------STARTER CODE
+
+EXIT_IRQ:
+/* Write to the End of Interrupt Register (ICCEOIR) */
+    STR R5, [R4, #0x10] // write to ICCEOIR
+    POP {R0-R7, LR}
+SUBS PC, LR, #4
+/*--- FIQ ---------------------------------------------------------*/
+SERVICE_FIQ:
+    B SERVICE_FIQ
+	
+//------------------END OF STARTER CODE
+
+
+
+KEY_ISR:
+    PUSH {R4-R12, LR}              // preserve working registers and link register
+
+    //READING CLEARNIGN pb egde 
+    LDR R4,=0xFF20005C            
+	// addr PB EDGCAP 
+	//reading
+    LDR R5,[R4]
+	//clearning
+    STR R5,[R4]                  
+    // updating  PB_int_flag for current 
+    LDR R6,=PB_int_flag
+    STR R5,[R6] //make sure 
+
+    //toggle for pasuisng
+	//aswellas resuming 
+    TST R5,#0x8  
+	//heer testing pB3
+    BEQ CHECK_KEY0 
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//if not skip to PB0
+    LDR R7,=PAUSE //curr cpause state
+    LDR R8,[R7]    
+	//togle that flag              
+    EOR R8,R8,#1   
+	//have to store it 
+    STR R8,[R7]                   
+    // update LEDsbased on the  new pause stated
+    LDR R9,=0xFF200000            //
+	//load again LED base address
+    CMP R8,#1
+    BNE resume_logic 
+	//in the case that its not paused 
+	//keep on gooign
+    // turn off LEDs if paused
+    MOV R10,#0
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//maakre sure all off
+    STR R10,[R9]
+    B CHECK_KEY0//same as starte code
+	//am i allowed to change?
+
+resume_logic:
+    // if resumed, restore timer and LEDs
+    LDR R11,=DEFINING_SPEED
+	//LDR R0,R11,R10,LSL #2] 
+	//see if in wrong spot 
+	/////////////////////////////////////////////////////////kya
+    LDR R10,[R11]                 
+	// hoding that  current speed level
+    LDR R11,=STORING_SPEED
+	//LDR R11,=DEFINING_SPEED
+    LDR R0, [R11,R10,LSL #2]     
+	
+	
+	
+	
+	//getting timer values
+    MOV R1,#7 //see if LSL 4 
+    BL ARM_TIM_config_ASM
+    LDR R1,=DISPLAY_PATT
+	//make sure not redudnace
+    ADD R10,R10,#1               
+	//adjust index for pause offset
+    LDR R2,[R1,R10,LSL #2]
+	//try to optimize 
+    STR R2,[R9]                   
+	//updateLEDpattern
+
+CHECK_KEY0:
+    //ski[ the pB is currenty at a paused state
+    LDR R3,=PAUSE
+	//making sure is paused first 
+    LDR R10,[R3]//chcekc valid registers 
+    CMP R10,#1
+    BEQ END_KEY_ISR
+    //TRYNA SLOW DOWN
+    TST R5, #0x1
+    BEQ CHECK_KEY1
+    LDR R6,=DEFINING_SPEED
+    LDR R7,[R6]
+	//TST R5, #0x1
+    CMP R7,#0
+	
+	
+	
+	
+	
+	
+	
+	//TEST?
+    BEQ CHECK_KEY1
+    SUB R7,R7,#1
+	//DR R7,[R6]
+    STR R7,[R6]
+	//BEQ CHECK_KEY1
+	//this is wring spot 
+    B refresh_timer
+
+CHECK_KEY1:
+    //TO CONTROLL SPEED
+	//AKA SPEED UP 
+    TST R5, #0x2
+	//testinf spcifically but 1
+	//skip if not pressed 
+    BEQ CHECK_KEY2
+	//gotta load that currrent level first 
+    LDR R6,=DEFINING_SPEED
+    LDR R7,[R6]//load load 
+	
+	
+	
+	
+	
+	
+	
+	
+    CMP R7,#2
+	//key 2 = max speed
+    BEQ CHECK_KEY2
+	//if at max skip speed increase 
+    ADD R7,R7,#1//increamnet speed by 1 
+	//duape
+    STR R7,[R6]
+    B refresh_timer
+
+CHECK_KEY2:
+    // PB2 = reverse direction
+    TST R5,#0x4
+    BEQ END_KEY_ISR //if no pressed skip drirection
+	//loading curr directio
+    LDR R6,=DIRECTION_TO_GO
+	//as defined abve 
+	
+	
+	
+    LDR R7,[R6]
+	//reveersing that sign 
+    RSB R7,R7,#0  
+	//reverse sign
+	//ex R7=-R7
+    STR R7,[R6]
+    B END_KEY_ISR
+
+refresh_timer:
+    //update timer and LED pattern after speed changSE
+    LDR R11,=DEFINING_SPEED //again have to load curr levl
+    LDR R10,[R11]
+	//have to refere to table
+	
+	
+    LDR R11,=STORING_SPEED
+	
+	//very terdioud have to cross right its correct 
+    LDR R0,[R11,R10,LSL#2]
+	//can you optimize
+    MOV R1,#7 //applying new timer value 
+	//LDR R10,[R11]
+    BL ARM_TIM_config_ASM
+    BL ARM_TIM_clear_INT_ASM
+    LDR R0,=0xFF200000
+	// BL ARM_TIM_clear_INT_ASM
+    LDR R1,=DISPLAY_PATT
+	//loading the address of diaplya patter 
+	///try diff scenraious 
+	
+    ADD R2,R10,#1//
+	//have to offset 1 
+    LDR R2,[R1,R2,LSL #2]
+	//refer to correct LED pattern
+    STR R2,[R0]//writing it to it 
+
+END_KEY_ISR:
+    POP {R4-R12,LR}
+    BX LR
+             
+
+
+// Timer ISR
+ARM_TIM_ISR:
+    PUSH {R0-R3,LR}             
+    // set tim_int_flag showing  
+	//a timer interrupt has taken palve 
+    LDR R0,=tim_int_flag 
+	//STR R1, [R0]   
+	//addy 
+    MOV R1,#1                    
+	//setting
+    STR R1,[R0]                  
+	//location stirgae for flag 
+    //clear the timer interrupt
+	// 1 .. the interrupt statregister
+    LDR R2,=0xFFFEC60C           
+	// clear address
+    MOV R3,#1                    
+    STR R3,[R2]                  //perform  //write
+    POP {R0-R3,LR}               
+    BX LR                         
+
+properDisplay:
+    PUSH {R0-R12, LR}                     
+    LDR R0,=TEXT_4_DISPLAY               
+	// r0address of message buffer
+    MOV R8,R0                            
+    //load index of currisplay pos
+    LDR R1,=msg_index     
+	//r1 -address of msgind
+	LDR R2,[R1]  
+    MOV R11,R2
+	//LDR R1,=msg_index   
+    //
+    LDR R9,=msg_index          //just loads same thing as r1
+    //load lenof message
+    LDR R3,=msg_len                      
+	// r3ddress of message length
+    LDR R3,[R3]                          
+	//r3 is da actual length value
+	
+	
+	
+	
+    MOV R10,R3                          
+    LDR R4, =HEX_TABLE                    
+	//r4lookup table for 7-seg patterns
+    // initialize packed 32-bit display outputs
+    MOV R5,#0                        //r5 hEX0–HEX3
+    MOV R6,#0        //r6HEX4–HEX5  
+    // prep loop counter
+    MOV R7,#0           //r7loop index 
+    MOV R12,#6            //r12 max iterations 
+DISPLAY_LOOP:
+    //calculate index =msgindex plus loop counter
+    ADD R8,R2,R7                     //
+	//R8 holds current character index
+	
+	
+    MOV R12,R3                        
+    CMP R8,R12                        
+	//comh length
+    BLT SKIP_WRAP                      
+	//if index in boundskip wrap logic
+	
+	
+	
+	
+    // wrap around if index >= msg_len
+    SUB R8,R8,R12                    // R8 = R8submsg_len
+    MOV R12,R8                        
+SKIP_WRAP:
+    // get character code from TEXT4_DISPLAY
+    LDRB R11,[R0,R8]                 
+	//fetch character byte
+    MOV R12,R11                       
+    LDRB R11,[R4,R11]                
+	//--segment pattern from table
+    //decide if char goes to lower or upper HEX
+    CMP R7,#4
+    BLT PACK_LOWER
+    //handle HEX4-HEX5 packing
+    SUB R12,R7,#4                    
+	//calcoffset from HEX4
+	
+	
+	
+	
+	
+    MOV R1,R12                        
+    LSL R12,R12,#3                   
+	//8 bits per HEX
+    LSL R11,R11,R12                  
+	//shift 2correct spot
+    ORR R6,R6,R11                    
+	//merge with HEX4-5 data
+    B NEXT_CHAR
+
+PACK_LOWER:
+    //handle HEX0-HEX3 packing
+    LSL R12,R7,#3                    
+	//calshift for HEX0-3
+    MOV R1,R12                       
+    LSL R11,R11,R12                  
+	//shift pattern
+    ORR R5,R5,R11                    
+	//merger
+
+NEXT_CHAR:
+    // ncrement loop index
+    ADD R7,R7,#1
+    CMP R7,#6
+    BLT DISPLAY_LOOP                   
+    //done packing
+    LDR R0,=0xFF200020                
+    STR R5,[R0]                       
+    MOV R8,R6   
+		//address for HEX45
+    LDR R0,=0xFF200030        //
+	//address for HEX45
+    STR R8,[R0]                       
+	//output upper numb
+    // update scroll interm of dir 
+    LDR R6,=DIRECTION_TO_GO
+    LDR R7,[R6]               //direction -1 or 1 --definbed 
+    ADD R2,R2,R7        //update index
+    //forward
+    CMP R2,R10          // compare to msg_len
+    BGE WRAP_AROUND_HIGH
+    //bounds check - backend
+    CMP R2,#0
+    BGE STORE_INDEX
+    //index lss 0 to end
+    ADD R2,R2,R10
+    B STORE_INDEX
+WRAP_AROUND_HIGH:
+    // indexmsg_len - wrp to start 
+    SUB R2,R2,R10
+STORE_INDEX:
+    STR R2,[R9]    //updated index
+    MOV R11,R2                      
+    POP {R0-R12,LR}         
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    BX LR                              
+enable_PB_INT_ASM:
+    PUSH {R4}                       
+    LDR R4,=0xFF200058            
+	//LOAD ADRESS OF INTER MASK REGISTER
+    LDR R2,[R4]                   
+	//READ CURRENT MASK VALUE
+    ORR R2,R2, R0               
+	
+	
+	
+	//ENABLE BITS FROM R0
+    STR R2,[R4]                   
+	//WRITE BAK TO MASK REG
+    MOV R0,R0                     
+    POP {R4}
+    BX LR
+ARM_TIM_config_ASM:
+    PUSH {R4, R5}                  
+	//SAVE USED REGISTERS
+	
+	
+	
+	
+	
+	
+    LDR R4,=0xFFFEC600            
+	//LOAD TIMER BASE ADDRESS
+    STR R0,[R4]                   
+	//STORE TIMER INTERVAL 
+    ADD R5,R4,#8                 
+    MOV R1,R1                     
+    STR R1,[R5]                   
+	// TORE VALUE
+    ADD R4,R4,#0                 
+    SUB R5,R5,#0                 
+    POP {R4,R5}
+    BX LR
+ARM_TIM_clear_INT_ASM:
+    PUSH {R4}
+    LDR R4,=0xFFFEC60C 
+	
+	
+	
+	
+	
+	
+    MOV R0,#1
+    STR R0,[R4]        //CLR INTERRUPT
+    MOV R0,R0                     
+    POP {R4}
+    BX LR
+
+//-------------STARTER CODE
+CONFIG_GIC:
+    PUSH {LR}
+/* To configure the FPGA KEYS interrupt (ID 73):
+* 1. set the target to cpu0 in the ICDIPTRn register
+* 2. enable the interrupt in the ICDISERn register */
+/* CONFIG_INTERRUPT (int_ID (R0), CPU_target (R1)); */
+/* NOTE: you can configure different interrupts
+   by passing their IDs to R0 and repeating the next 3 lines */
+    MOV R0, #73            // KEY port (Interrupt ID = 73)
+    MOV R1, #1             // this field is a bit-mask; bit 0 targets cpu0
+    BL CONFIG_INTERRUPT
+//-------------END STARTER CODE 
+
+
+
+
+
+    MOV R0,#29
+	//refeferibf to abovee
+    MOV R1,#1
+	
+	
+	
+	
+	//see again
+    BL CONFIG_INTERRUPT
+	
+	
+	
+	
+
+//-------------STARTER CODE
+
+/* configure the GIC CPU Interface */
+    LDR R0, =0xFFFEC100    // base address of CPU Interface
+/* Set Interrupt Priority Mask Register (ICCPMR) */
+    LDR R1, =0xFFFF        // enable interrupts of all priorities levels
+    STR R1, [R0, #0x04]
+/* Set the enable bit in the CPU Interface Control Register (ICCICR).
+* This allows interrupts to be forwarded to the CPU(s) */
+    MOV R1, #1
+    STR R1, [R0]
+/* Set the enable bit in the Distributor Control Register (ICDDCR).
+* This enables forwarding of interrupts to the CPU Interface(s) */
+    LDR R0, =0xFFFED000
+    STR R1, [R0]
+    POP {PC}
+	
+//-------------END STARTER CODE 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// --------------------STARTER CODE
+
+/*
+* Configure registers in the GIC for an individual Interrupt ID
+* We configure only the Interrupt Set Enable Registers (ICDISERn) and
+* Interrupt Processor Target Registers (ICDIPTRn). The default (reset)
+* values are used for other registers in the GIC
+* Arguments: R0 = Interrupt ID, N
+* R1 = CPU target
+*/
+CONFIG_INTERRUPT:
+    PUSH {R4-R5, LR}
+/* Configure Interrupt Set-Enable Registers (ICDISERn).
+* reg_offset = (integer_div(N / 32) * 4
+* value = 1 << (N mod 32) */
+    LSR R4, R0, #3    // calculate reg_offset
+    BIC R4, R4, #3    // R4 = reg_offset
+    LDR R2, =0xFFFED100
+    ADD R4, R2, R4    // R4 = address of ICDISER
+    AND R2, R0, #0x1F // N mod 32
+    MOV R5, #1        // enable
+    LSL R2, R5, R2    // R2 = value
+/* Using the register address in R4 and the value in R2 set the
+* correct bit in the GIC register */
+    LDR R3, [R4]      // read current register value
+    ORR R3, R3, R2    // set the enable bit
+    STR R3, [R4]      // store the new register value
+/* Configure Interrupt Processor Targets Register (ICDIPTRn)
+* reg_offset = integer_div(N / 4) * 4
+* index = N mod 4 */
+    BIC R4, R0, #3    // R4 = reg_offset
+    LDR R2, =0xFFFED800
+    ADD R4, R2, R4    // R4 = word address of ICDIPTR
+    AND R2, R0, #0x3  // N mod 4
+    ADD R4, R2, R4    // R4 = byte address in ICDIPTR
+/* Using register address in R4 and the value in R2 write to
+* (only) the appropriate byte */
+    STRB R1, [R4]
+    POP {R4-R5, PC}
+
+//------------------ END OF START CODE 
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//DONEEEE	
+SWITCHES_EFFECT:
+    PUSH {R0-R7, LR}
+    //read current switch state
+    LDR R0,=0xFF200040
+    LDR R1,[R0]
+    AND R1,R1,#0xF      //get
+    //coomparing with last state
+    LDR R2,=LAST_SWITCH_STATE
+    LDR R3,[R2]
+    CMP R1,R3
+    BEQ DONE_UPDATE_PATTERN   
+	//have no change  change in switches
+    //Store new switch state
+    STR R1,[R2]
+    //Check if pause
+	//if paused skip update
+    LDR R4,=PAUSE
+    LDR R5,[R4]
+	
+	
+	
+	
+	
+	
+    CMP R5,#1
+    BEQ DONE_UPDATE_PATTERN
+    //loading
+	//////////HERERERERERERERERERERE
+    LDR R4,=TEXT_4_DISPLAY
+    //chk all sewithces off
+	//this would be default case
+    MOV R6,#0
+	//============CLEANR IT UPPPP
+    CMP R1,R6
+    BEQ OFFICE
+    //temp comp
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    MOV R6,#1
+    CMP R1,R6
+	//SUBS R4,R9,R3
+    BEQ EASIER_0001
+    MOV R6,#2
+    CMP R1,R6
+    BEQ EASIER_0010
+    MOV R6,#3
+    CMP R1,R6
+	//HARDOCDED FOR SIMPLICITY 
+    BEQ EASIER_0011
+    MOV R6,#4
+    CMP R1,R6
+	//ADD R3,R3,#1
+    BEQ EASIER_0100
+	
+	
+	
+    MOV R6,#5
+	//ADD R3,R3,#1
+    CMP R1,R6
+    BEQ EASIER_0101
+    MOV R6,#6
+    CMP R1,R6
+	//BEQ EASIER_0001
+    BEQ EASIER_0110
+	
+	
+	
+	
+	
+	
+	
+    MOV R6,#7
+	//ADD R3,R3,#1
+    CMP R1,R6
+    BEQ EASIER_0111
+    MOV R6, #8
+	//SUBS r4,R3,R4 ////////////BETTER WAY >?
+    CMP R1, R6
+    BEQ EASIER_1000
+    MOV R6,#9
+	////ADD R3,R3,#1
+    CMP R1,R6
+    BEQ EASIER_1001
+	//SUBS R4,R9,R3
+    MOV R6,#10
+	////CHECK IF CAN DO IT BETTER 
+    CMP R1,R6
+    BEQ EASIER_1010
+    MOV R6,#11
+	//SUBS R4,R9,R3
+    CMP R1,R6
+	////SUBS R4,R9,R4
+    BEQ EASIER_1011
+    MOV R6,#12
+	//ADD R3,R3,#1
+    CMP R1,R6
+    BEQ EASIER_1100
+	//ADD R3,R3,#1
+    MOV R6,#13
+    CMP R1,R6
+	////ADD R3,R3,#1
+    BEQ EASIER_1101
+    MOV R6,#14
+    CMP R1,R6
+	////SUBS R8,R10,R4
+    BEQ EASIER_1110
+    MOV R6,#15
+	///MAKE SURE TO REDO
+    CMP R1,R6
+    BEQ EASIER_1111
+    B DONE_UPDATE_PATTERN
+//DONEEE
+
+OFFICE:
+    LDR R4,=TEXT_4_DISPLAY      
+	//base of message buffer
+    MOV R5,#0                   
+	// index counter
+    //////////////////////C//////////////////////////////
+    LDR R6,=letter_e            
+    LDRB R7,[R6]                
+    MOV R1,R7                   
+    STRB R1,[R4,R5]            
+	//store into buffer
+    ADD R5,R5,#1
+    //================C======================
+    LDR R6,=letter_c
+    LDRB R7,[R6]
+    MOV R1,R7
+    STRB R1,[R4,R5]
+    ADD R5, R5,#1
+    //====================1===================
+    LDR R6,=number_1
+    LDRB R7,[R6]
+    MOV R1,R7
+    STRB R1,[R4,R5]
+    ADD R5,R5,#1
+    //======================F========================
+    LDR R6,=letter_f
+    LDRB R7,[R6]
+    MOV R1,R7
+    STRB R1,[R4,R5]
+    ADD R5,R5,#1
+    //===============F LOading===============
+    LDR R6,=letter_f
+    LDRB R7,[R6]
+    MOV R1,R7
+    STRB R1,[R4,R5]
+    ADD R5,R5,#1
+    //===============LETTERO==========
+    LDR R6,=letter_o
+    LDRB R7,[R6]
+    MOV R1,R7
+    STRB R1,[R4,R5]
+    //===============LENGHT 6============
+    LDR R2,=msg_len
+    MOV R6,#6
+    MOV R7,R6                  
+    STR R7,[R2]
+    // -==========================0RSET==================
+    LDR R2,=msg_index
+    MOV R6,#0
+    MOV R7,R6
+    STR R7,[R2]
+    B DONE_UPDATE_PATTERN
+	
+EASIER_0001:
+    LDR R5,=pattern_0001
+    MOV R6,#8
+    B EASIER_FINAL
+EASIER_0010:
+    LDR R5,=pattern_0010
+    MOV R6,#8
+    B EASIER_FINAL
+EASIER_0011:
+    LDR R5,=pattern_0011
+    MOV R6,#18
+    B EASIER_FINAL
+EASIER_0100:
+    LDR R5,=pattern_0100
+    MOV R6,#8
+    B EASIER_FINAL
+EASIER_0101:
+    LDR R5,=pattern_0101
+    MOV R6,#14
+    B EASIER_FINAL
+EASIER_0110:
+    LDR R5,=pattern_0110
+    MOV R6,#14
+    B EASIER_FINAL
+EASIER_0111:
+    LDR R5,=pattern_0111
+    MOV R6,#23
+    B EASIER_FINAL
+EASIER_1000:
+    LDR R5,=pattern_1000
+    MOV R6,#4
+    B EASIER_FINAL
+EASIER_1001:
+    LDR R5,=pattern_1001
+    MOV R6,#14
+    B EASIER_FINAL
+EASIER_1010:
+    LDR R5,=pattern_1010
+    MOV R6,#14
+    B EASIER_FINAL
+EASIER_1011:
+    LDR R5,=pattern_1011
+    MOV R6,#23
+    B EASIER_FINAL
+EASIER_1100:
+    LDR R5,=pattern_1100
+    MOV R6,#10
+    B EASIER_FINAL
+EASIER_1101:
+    LDR R5,=pattern_1101
+    MOV R6,#19
+    B EASIER_FINAL
+EASIER_1110:
+    LDR R5,=pattern_1110
+    MOV R6,#19
+    B EASIER_FINAL
+EASIER_1111:
+    LDR R5,=pattern_1111
+    MOV R6,#28
+    B EASIER_FINAL
+
+
+RESUMATION:
+    // unpausing need to refresh  display w rrent switch pat
+    LDR R0,=LAST_SWITCH_STATE
+    LDR R1,[R0]
+    CMP R1,#0
+    BEQ DONE_UPDATE_PATTERN 
+	//np switches were pressed before pausing
+    //force a pattern update by pretending the switches changed
+    MOV R2,#0
+    STR R2,[R0]            
+	//clear old pattern
+    B SWITCHES_EFFECT 
+	//load patter correctly
+EASIER_FINAL:
+    //manually copy bytes based on pattern length in R6
+    CMP R6,#4
+    BEQ EASIER_4
+    CMP R6,#8
+    BEQ EASIER_8
+    CMP R6,#10
+    BEQ EASIER_10
+    CMP R6,#14
+    BEQ EASIER_14
+    CMP R6,#18
+    BEQ EASIER_18
+	
+	
+	
+	
+	
+    CMP R6,#19
+    BEQ EASIER_19
+    CMP R6,#23
+    BEQ EASIER_23
+    CMP R6,#28
+    BEQ EASIER_28
+    B EASIER_DONE 
+EASIER_4:
+    //4 byetetet
+    LDRB R0,[R5]
+    STRB R0,[ R4]
+    LDRB R0,[R5,#1 ]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5,#2 ]
+    STRB R0,[R4,#2]
+    LDRB R0,[R5, #3]
+    STRB R0,[R4,#3]
+    B EASIER_DONE
+EASIER_8:
+    //copy 8 bytes
+    LDRB R0,[R5]
+    STRB R0,  [R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5, #2]
+    STRB R0,[R4,#2]
+    LDRB R0,[R5, #3]
+    STRB R0, [R4, #3]
+    LDRB R0,[R5, #4]
+    STRB R0,  [R4, #4]
+	
+	
+	
+    LDRB R0,[R5, #5]
+    STRB R0,[R4, #5]
+    LDRB R0,[R5, #6]
+    STRB R0,   [R4, #6]
+    LDRB R0, [R5, #7]
+    STRB R0,   [R4, #7]
+    B EASIER_DONE
+EASIER_10:
+    //copy 10 bytes akiiiiiiiiiiiiiiiiiiiiii
+    LDRB R0,  [R5]
+    STRB R0,[R4]
+    LDRB R0,[R5, #1]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5,#2]
+    STRB R0,[R4, #2]
+    LDRB R0,[R5,#3]
+    STRB R0,[R4,#3]
+    LDRB R0,[R5,  #4]
+    STRB R0,[R4,#4]
+    LDRB R0,[R5,#5]
+    STRB R0,[R4,#5]
+    LDRB R0, [R5,#6]
+    STRB R0,[R4,#6]
+    LDRB R0,[R5,#7]
+    STRB R0,[R4,#7]
+	
+	
+	
+    LDRB R0, [R5,#8]
+    STRB R0, [R4, #8]
+    LDRB R0, [R5, #9]
+    STRB R0, [R4, #9]
+    B EASIER_DONE
+
+EASIER_14:
+    //copy 14 bytes 
+    LDRB R0,[R5]
+    STRB R0,[R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4,#1]
+	
+	
+	
+	
+    LDRB R0,[R5,#2]
+    STRB R0,[R4,#2]
+    LDRB R0, [R5,#3]
+    STRB R0,[R4, #3]
+    LDRB R0,[R5,#4]
+    STRB R0,[R4,#4]
+    LDRB R0,[R5,#5]
+    STRB R0,[R4, #5]
+    LDRB R0,[R5,#6]
+    STRB R0, [R4 ,#6]
+	
+	
+	
+	
+    LDRB R0,[R5,#7]
+    STRB R0,[R4, #7]
+    LDRB R0, [R5, #8]
+    STRB R0,[R4,#8]
+    LDRB R0,[R5,#9]
+    STRB R0,[R4,#9]
+	
+	
+    LDRB R0,[R5,#10]
+    STRB R0 ,[R4,#10]
+    LDRB R0,[R5, #11]
+    STRB R0,[R4,#11]
+    LDRB R0,[R5,#12]
+    STRB R0,[R4,#12]
+    LDRB R0,[R5, #13]
+    STRB R0,[R4, #13]
+    B EASIER_DONE
+EASIER_18:
+    // copy 18
+    LDRB R0,[R5]
+    STRB R0,[R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4, #1]
+    LDRB R0,[R5,#2]
+    STRB R0,[R4,#2]
+    LDRB R0,[R5,#3]
+    STRB R0,[R4,#3]
+    LDRB R0,[R5,#4]
+    STRB R0,[R4,#4]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+    LDRB R0,[R5,#5]
+    STRB R0,[R4,#5]
+    LDRB R0,[R5,#6]
+    STRB R0,[R4,#6]
+	
+	
+    LDRB R0,[R5,#7]
+    STRB R0,[R4,#7]
+    LDRB R0,[R5, #8]
+    STRB R0,[R4,#8]
+    LDRB R0,[R5, #9]
+    STRB R0,[R4, #9]
+	
+	
+    LDRB R0,[R5,#10]
+    STRB R0,[R4,#10]
+    LDRB R0,[R5,#11]
+    STRB R0,[R4, #11]
+    LDRB R0,[R5,#12]
+    STRB R0,[R4, #12]
+    LDRB R0,[R5,#13]
+    STRB R0,[R4,#13]
+    LDRB R0,[R5,#14]
+    STRB R0,[R4, #14]
+    LDRB R0,[R5,#15]
+	
+	
+	
+	
+    STRB R0,[R4,#15]
+    LDRB R0,[R5, #16]
+    STRB R0,[R4,#16]
+    LDRB R0,[R5,#17]
+    STRB R0,[R4, #17]
+    B EASIER_DONE
+
+EASIER_19:
+    // copy19
+    LDRB R0,[R5]
+    STRB R0,[R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5,#2]
+    STRB R0,[R4,#2]
+	
+	
+	
+	
+	
+    LDRB R0,[R5,#3]
+    STRB R0,[R4, #3]
+    LDRB R0,[R5,#4]
+    STRB R0,[R4,#4]
+    LDRB R0,[R5,#5]
+	
+	
+	
+	
+	
+	
+	
+	
+    STRB R0,[R4,#5]
+    LDRB R0,[R5,#6]
+    STRB R0,[R4,#6]
+    LDRB R0,[R5,#7]
+    STRB R0,[R4,#7]
+    LDRB R0,[R5,#8]
+	
+	
+	
+	
+    STRB R0,[R4,#8]
+    LDRB R0,[R5,#9]
+    STRB R0,[R4,#9]
+    LDRB R0,[R5,#10]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    STRB R0,[R4,#10]
+    LDRB R0,[R5, #11]
+    STRB R0,[R4,  #11]
+    LDRB R0, [R5,  #12]
+    STRB R0,[R4, #12]
+    LDRB R0,[R5,#13]
+    STRB R0,[R4 , #13]
+    LDRB R0,[R5,#14]
+	
+	
+	
+	
+    STRB R0,[R4,#14]
+    LDRB R0,[R5,#15]
+    STRB R0,[R4,#15]
+    LDRB R0,[R5,   #16]
+    STRB R0,[R4, #16]
+    LDRB R0,[R5,#17]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    STRB R0,[R4,#17]
+    LDRB R0,[R5, #18]
+    STRB R0, [R4, #18]
+    B EASIER_DONE
+
+EASIER_23:
+    // Copy 23 bytes (for patterns like "ECSE 325 ECSE 324 CodE")
+    LDRB R0,[R5]
+    STRB R0,[R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5,#2]
+    STRB R0,[R4,#2]
+    LDRB R0,[R5, #3]
+    STRB R0,[R4,#3]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    LDRB R0,[R5,#4]
+    STRB R0,[R4,#4]
+    LDRB R0,[R5,#5]
+    STRB R0,[R4,  #5]
+    LDRB R0,[R5,#6]
+    STRB R0,[R4,#6]
+    LDRB R0,[R5,#7]
+    STRB R0,[R4,  #7]
+    LDRB R0,[R5,#8]
+    STRB R0,[R4,#8]
+    LDRB R0,[R5,#9]
+    STRB R0,[R4,#9]
+    LDRB R0,[R5,#10]
+    STRB R0,[R4,#10]
+    LDRB R0,[R5,#11]
+    STRB R0,[R4,#11]
+    LDRB R0,[R5,#12]
+    STRB R0,[R4,#12]
+    LDRB R0,[R5,#13]
+    STRB R0,[R4,#13]
+    LDRB R0,[R5,#14]
+    STRB R0,[R4,#14]
+    LDRB R0,[R5,#15]
+    STRB R0,[R4  ,#15]
+    LDRB R0,[R5,#16]
+    STRB R0,[R4,#16]
+    LDRB R0,[R5,#17]
+    STRB R0,[R4,#17]
+    LDRB R0,[R5,#18]
+    STRB R0,[R4,#18]
+    LDRB R0,[R5,#  19]
+    STRB R0,[R4,#19]
+    LDRB R0,[R5,#20]
+    STRB R0,[R4,#20]
+    LDRB R0,[R5,#21]
+    STRB R0,[R4,#21]
+    LDRB R0, [R5, #22]
+    STRB R0, [R4, #22]
+    B EASIER_DONE
+
+EASIER_28:
+    //copy28 
+    LDRB R0,[R5]
+    STRB R0,[R4]
+    LDRB R0,[R5,#1]
+    STRB R0,[R4,#1]
+    LDRB R0,[R5,#2]
+    STRB R0,[R4,#2]
+    LDRB R0,[R5,#3]
+    STRB R0,[R4,#3]
+    LDRB R0,[R5,#4]
+    STRB R0,[R4,#4]
+    LDRB R0,[R5,#5]
+    STRB R0,[R4,#5]
+    LDRB R0,[R5,#6]
+    STRB R0, [R4, #6]
+    LDRB R0,[R5,#7]
+    STRB R0,[R4,#7]
+    LDRB R0,[R5,#8]
+    STRB R0,[R4,#8]
+    LDRB R0,[R5,#9]
+    STRB R0,[R4,#9]
+    LDRB R0,[R5,#10]
+    STRB R0, [R4,#10]
+    LDRB R0,[R5,#11]
+    STRB R0, [R4,#11]
+    LDRB R0, [R5, #12]
+    STRB R0,[R4,#12]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    LDRB R0,[R5,#13]
+    STRB R0,[R4,# 13]
+    LDRB R0, [R5,#14]
+    STRB R0,[R4,#14]
+    LDRB R0,[R5,#15]
+    STRB R0,[R4, #15]
+    LDRB R0, [R5, #16]
+    STRB R0,[R4,#16]
+    LDRB R0, [R5,#17]
+    STRB R0,[R4, #17]
+    LDRB R0, [R5,#18]
+    STRB R0,[R4,#18]
+    LDRB R0,[R5,#19]
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    STRB R0,[R4, #19]
+    LDRB R0,[R5,#20]
+    STRB R0, [R4,#20]
+    LDRB R0,[R5,#21]
+    STRB R0,[R4,#21]
+    LDRB R0,[R5,#22]
+    STRB R0,[R4,#22]
+    LDRB R0, [R5,#23]
+    STRB R0,[R4,#23]
+    LDRB R0,[R5,#24]
+    STRB R0,[R4,#24]
+    LDRB R0,[R5,#25]
+    STRB R0, [R4,#25]
+    LDRB R0,[R5,#26]
+    STRB R0,[R4,#26]
+    LDRB R0,[R5,#27]
+    STRB R0,[R4, #27]
+    B EASIER_DONE
+EASIER_DONE:
+    LDR R0,=msg_len
+    STR R6,[R0]
+    LDR R0,=msg_index
+    MOV R1,#0
+    STR R1,[R0]
+DONE_UPDATE_PATTERN:
+    POP {R0-R7,LR}
+    BX LR
+REP_ECSE324:
+    //ECSE 324 pattern
+    LDR R0,=TEXT_4_DISPLAY
+    MOV R1,#0x04  // '4'
+    STRB R1,[R0]
+    MOV R1,#0x02  
+	//2
+    STRB R1,[R0,#1]
+    MOV R1,#0x03  
+	// 3
+    STRB R1,[R0,#2]
+    MOV R1,#0x12  // space
+    STRB R1,[R0, #3]
+    MOV R1,#0x15  
+	//e
+    STRB R1,[R0,#4]
+    MOV R1, #0x11 
+	//s
+    STRB R1,[R0,#5]
+    MOV R1, #0x16  
+	//c
+    STRB R1,[R0,#6]
+    MOV R1,#0x15  
+	//e
+    STRB R1,[R0,#7]
+    LDR R2,=msg_len
+    MOV R1,#8
+    STR R1,[R2]
+    B RESETTER
+
+REP_ECSE325:
+    //get that 325 poatter 
+	//make sure 
+    LDR R0,=TEXT_4_DISPLAY
+    MOV R1,#0x05  // '5'
+    STRB R1,[R0]
+    MOV R1, #0x02  // '2'
+    STRB R1, [R0,  #1]
+    MOV R1,#0x03  // '3'
+	//
+	//
+    STRB R1, [R0,  #2]
+    MOV R1, #0x12  // space
+    STRB R1, [R0,  #3]
+    MOV R1,  #0x15  //e
+    STRB R1, [R0,#4]
+	//STRB R1, [R0,  #3]
+    MOV R1,  #0x11  //s
+    STRB R1,  [R0,  #5]
+    MOV R1, #0x16  //c
+    STRB R1, [R0,#6]
+    MOV R1,#0x15  //e
+	//STRB R1, [R0,  #3]
+    STRB R1,[R0,#7]
+    // Set length
+    LDR R2,=msg_len
+    MOV R1,#8
+    STR R1,[R2]
+    B RESETTER
+
+REP_CODE:
+    //CodE pattern
+    LDR R0,=TEXT_4_DISPLAY
+    MOV R1,#0x0E //e
+    STRB R1,[R0]
+    MOV R1,#0x0D  //d
+    STRB R1,[R0,#1]
+    MOV R1,#0x10  //o'''
+    STRB R1,[R0,#2]
+    MOV R1,#0x0C  //c
+    STRB R1,[R0,#3]
+    //clear next bytes 
+    MOV R1,#0
+    STRB R1,[R0,#4]
+    STRB R1,[R0,#5]
+    STRB R1,[R0,#6]
+    STRB R1,[R0,#7]
+    //set lengthk
+    LDR R2,=msg_len
+    MOV R1,#4
+    STR R1,[R2]
+    B RESETTER
+
+REP_CAFE:
+    //Directly store CAFE pattern
+    LDR R0,=TEXT_4_DISPLAY
+    MOV R1,#0x0E //e
+    STRB R1,[R0]
+    MOV R1,#0x0F//f
+    STRB R1,[R0,#1]
+    MOV R1,#0x0A //a
+    STRB R1,[R0,#2]
+    MOV R1,#0x0C  //c
+    STRB R1,[R0,#3]
+    //
+    MOV R1,#0
+    STRB R1,[R0,#4]
+    STRB R1,[R0,#5]
+    STRB R1,[R0,#6]
+    STRB R1,[R0,#7]
+    LDR R2,=msg_len
+    MOV R1,#4
+    STR R1,[R2]
+    B RESETTER
+
+RESETTER:
+    LDR R0,=msg_index
+    MOV R1,#0
+    STR R1,[R0]
+    BX LR
+
+STORE_ECSE325:
+    PUSH {R4-R6, LR}
+    
+
+    //storing base address like usual
+    LDR R4, =TEXT_4_DISPLAY
+
+    //encdoing 5
+    LDR R5,=number_5
+    LDRB R6,[R5]
+    STRB R6,[R4]              //index 0=5
+
+    //varibale for number 2
+    LDR R5,=number_2
+    LDRB R6,[R5]
+    ADD R5, R4, #1
+    STRB R6, [R5]              //index1=2
+
+    //encoding for 3 
+    LDR R5, =number_3
+    LDRB R6, [R5]
+    ADD R5, R4, #2
+    STRB R6, [R5]              //index2=3
+
+//esnure proper spacing 
+    LDR R5, =letter_space
+    LDRB R6, [R5]
+    ADD R5, R4, #3
+    STRB R6, [R5]              //indx3=e
+
+    //encoding for e 
+    LDR R5, =letter_e
+    LDRB R6, [R5]
+    ADD R5, R4, #4
+    STRB R6, [R5]              //ind4=e
+
+    //encodindg 4s
+    LDR R5, =letter_s
+    LDRB R6, [R5]
+    ADD R5, R4, #5
+    STRB R6, [R5]              //ind5 =s
+
+    //ENCODING FOR C
+    LDR R5,=letter_c
+    LDRB R6,[R5]
+    ADD R5,R4,#6
+    STRB R6,[R5]              // INDX6 =c
+
+    //endocng e again 
+    LDR R5,=letter_e
+    LDRB R6,[R5]
+    ADD R5,R4,#7
+    STRB R6,[R5]              // INDX7 = E
+
+    //lenght set to 8 
+    LDR R5,=msg_len
+    MOV R6,#8
+    STR R6,[R5]
+
+    POP {R4-R6, LR}
+    BX LR
+
+
+STORE_ECSE324:
+    PUSH {R4-R6,LR}
+    
+
+    //save baseaddress
+    LDR R4,=TEXT_4_DISPLAY
+
+    //encoding 4
+    LDR R5,=number_4
+    LDRB R6,[R5]
+    STRB R6,[R4]              //indx0=4
+
+    //encoding 2
+    LDR R5,=number_2
+    LDRB R6,[R5]
+    ADD R5,R4,#1
+    STRB R6,[R5]              //index1 =2
+
+    //encoding 3 
+    LDR R5,=number_3
+    LDRB R6,[R5]
+    ADD R5,R4,#2
+    STRB R6,[R5]              //index2=3
+
+    //encoding space 
+    LDR R5,=letter_space
+    LDRB R6,[R5]
+    ADD R5,R4,#3
+    STRB R6,[R5]              // index3=space 
+
+    //encoding of e 
+    LDR R5,=letter_e
+    LDRB R6,[R5]
+    ADD R5,R4,#4
+    STRB R6,[R5]              //index4=e
+
+    //encoding s
+    LDR R5,=letter_s
+    LDRB R6,[R5]
+    ADD R5,R4,#5
+    STRB R6,[R5]              // index4=2
+
+    //encoding of c
+    LDR R5,=letter_c
+    LDRB R6,[R5]
+    ADD R5,R4,#6
+    STRB R6,[R5]              //index6=c
+
+    //encoding of e
+    LDR R5, =letter_e
+    LDRB R6, [R5]
+    ADD R5, R4, #7
+    STRB R6, [R5]              //indx7=e
+    //LENGHT TO 8
+    LDR R5, =msg_len
+    MOV R6, #8
+    STR R6, [R5]
+
+    POP {R4-R6,LR}
+    BX LR
+
+
+
+
+
+UNEXPECTED_INTERRUPT: B UNEXPECTED_INTERRUPT
+
+
+
+
+
+
+
+
+
+
+
+
+
+
